@@ -8,10 +8,13 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"encoding/binary"
+	//"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
+	"reflect"
 )
 
 type EventType uint32
@@ -304,7 +307,49 @@ func ParseEvents(eventLogFile string) ([]rawEvent, error) {
 	return events, nil
 }
 
-func dumpEventLog(events []rawEvent) {
+func EventLogIterate(events []rawEvent) map[int][]byte{
+	pcrs := make(map[int][]byte)
+	for i := 0; i < 10; i++ {
+		pcrs[i] = make([]byte, 32) 
+	}
+	for  _, event := range events {
+		h := sha256.New()
+		h.Write(event.data)
+		for _, digest := range event.digests {
+			if digest.hash == crypto.SHA256 {
+				extendBuf := sha256.New()
+				extendBuf.Write(pcrs[event.index])
+				extendBuf.Write(digest.data)
+				pcrs[event.index] = extendBuf.Sum(nil)
+			}
+		}
+	}
+	fmt.Println("Expected PCR values, as per eventlog:")
+	for i := 0; i < 10; i++ {
+		fmt.Printf("PCR%d: %x\n", i, pcrs[i])
+	}	
+	return pcrs
+}
+
+const (
+	ImgA = "IMGA"
+	ImgB = "IMGB"
+)
+
+var diskGuids = make(map[string]Guid)
+func ParseGPTEntries(events []rawEvent) {
+	for  _, event := range events {
+		if event.index == 5 {
+			gptEntries, err := parseGPTData(event.data)
+			if err == nil {
+				diskGuids[ImgA] = gptEntries.ImgGuid(ImgA)
+				diskGuids[ImgB] = gptEntries.ImgGuid(ImgB)  
+			}
+		} 
+	}
+}
+
+func dumpEventLog(events []rawEvent, verbose bool) {
 	for  _, event := range events {
 		fmt.Printf("----Event %d----\n", event.sequence)
 		fmt.Printf("Type: %s\n", eventTypeNames[event.typ])
@@ -312,11 +357,13 @@ func dumpEventLog(events []rawEvent) {
 		h := sha256.New()
 		h.Write(event.data)
 		fmt.Printf("Computed Hash: %x\n", h.Sum(nil))
-		if event.index == 8 || event.index == 9 {
-			fmt.Printf("Data: %s\n", event.data)
-		}
-		if err := parseEventDataTCG(event.typ, event.data); err != nil {
-			fmt.Printf("Error in parseEventDataTCG: %v\n", err)
+		if verbose {
+			if event.index == 8 || event.index == 9 {
+				fmt.Printf("Data: %s\n", event.data)
+			}
+			if err := parseEventDataTCG(event.typ, event.data); err != nil {
+				fmt.Printf("Error in parseEventDataTCG: %v\n", err)
+			}
 		}
 		for _, digest := range event.digests {
 			if digest.hash == crypto.SHA256 {
@@ -350,9 +397,78 @@ type Guid struct {
 }
 
 func (g *Guid) String() string {
-	return fmt.Sprintf("{%08x-%04x-%04x-%04x-%012x}", 
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", 
 		g.Data1, g.Data2, g.Data3, 
 		binary.BigEndian.Uint16(g.Data4[0:2]),
 		g.Data4[2:])
 }
 
+type templateEvent struct {
+	Data string
+	Digest []byte
+}
+
+func PrepareMeasurements(events []rawEvent) []templateEvent {
+	ParseGPTEntries(events)
+	templateEvents := make([]templateEvent, 0)
+	for  _, event := range events {
+		if event.index != 8 {
+			continue
+		}
+		fmt.Printf("----Event %d----\n", event.sequence)
+		fmt.Printf("Type: %s\n", eventTypeNames[event.typ])
+		grubData := string(event.data)
+		if strings.HasPrefix(grubData, "grub_cmd ") {
+			grubData = strings.TrimPrefix(grubData, "grub_cmd ")
+		} else if strings.HasPrefix(string(event.data), "grub_kernel_cmdline "){
+			grubData = strings.TrimPrefix(grubData, "grub_kernel_cmdline ")
+			grubData = strings.TrimSuffix(grubData, "\x00")
+		}
+		imgAGuid := diskGuids[ImgA]
+		imgBGuid := diskGuids[ImgB]
+		imgAGuidStr := fmt.Sprintf("%s", &imgAGuid)
+		imgBGuidStr := fmt.Sprintf("%s", &imgBGuid)
+		grubData = strings.Replace(grubData, imgAGuidStr, "IMGGUID", -1) 
+		grubData = strings.Replace(grubData, imgBGuidStr, "IMGGUID", -1) 
+		grubData = strings.Replace(grubData, "hd0,gpt2", "IMGDEVID", -1) 
+		grubData = strings.Replace(grubData, "hd0,gpt3", "IMGDEVID", -1) 
+		grubData = strings.Replace(grubData, "hd0,gpt4", "CONFIGDEVID", -1) 
+		grubData = strings.Replace(grubData, "hd0", "CONFIGDISK", -1) 
+		h := sha256.New()
+		h.Write([]byte(grubData))
+		fmt.Printf("Data: %s\n", grubData)
+		computedDigest := h.Sum(nil)
+		fmt.Printf("Computed Hash: %x\n", computedDigest)
+		tEvent := templateEvent{Data: grubData, Digest: computedDigest}
+		templateEvents = append(templateEvents, tEvent)
+		for _, digest := range event.digests {
+			if digest.hash == crypto.SHA256 {
+				fmt.Printf("Digest: %x\n", digest.data)
+			}
+		}
+	}
+	return templateEvents
+}
+
+func validateEventLog(events []rawEvent, pcrs map[int][]byte, templateEvents []templateEvent) error {
+	//First validate that eventlog matches pcrs
+	derivedPcrs := EventLogIterate(events)
+	for i, digest := range pcrs {
+		fmt.Printf("Comparing PCRS %x and %x\n", derivedPcrs[i], digest)
+		if !reflect.DeepEqual(digest, derivedPcrs[i]) {
+			return fmt.Errorf("PCR %d does not match, have %x but want %x",
+				i, derivedPcrs[i], digest)
+		}
+	}
+	
+	//All good with PCRs, now get PCR8 events from events
+	PCR8Events := PrepareMeasurements(events)
+	for i, e := range PCR8Events {
+		fmt.Printf("Comparing PCR 8 Events %s and %s\n", e.Data, templateEvents[i].Data) 
+		if !reflect.DeepEqual(e.Data, templateEvents[i].Data) {
+			return fmt.Errorf("PCR8 event %s does not match",
+				e.Data)
+		}
+	}
+	return nil
+}
