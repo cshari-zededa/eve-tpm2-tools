@@ -1,23 +1,22 @@
-// Copyright (c) 2018-2019 Zededa, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package eventlog 
+package eventlog
 
 import (
 	"bytes"
 	"encoding/binary"
-	"unicode/utf16"
 	"fmt"
 	"io"
+	"unicode/utf16"
 )
 
 type efiGPTPartitionEntry struct {
-	tGuid   Guid
-	uGuid   Guid
-	sLBA    uint64
-	eLBA    uint64
-        attr    uint64
-	name    string
+	tGuid Guid
+	uGuid Guid
+	sLBA  uint64
+	eLBA  uint64
+	attr  uint64
+	name  string
 }
 
 func (p *efiGPTPartitionEntry) String() string {
@@ -53,24 +52,23 @@ func (e *efiGPTEventData) ImgGuid(Img string) Guid {
 	return Guid{}
 }
 
-
 func (e *efiGPTEventData) Bytes() []byte {
 	return e.data
 }
 
 const (
-	diskGuidOffset = 56
-	partEntryOffset = 12 //relative to end of DiskGUID 
+	diskGuidOffset  = 56
+	partEntryOffset = 12 //relative to end of DiskGUID
 )
 
-func parseEventDataEFIGPT(data []byte) error { 
+func parseEventDataEFIGPT(data []byte) error {
 	if gptData, err := parseGPTData(data); err == nil {
 		fmt.Printf("%s\n", gptData.String())
 		return nil
 	} else {
 		return err
 	}
-} 
+}
 
 func parseGPTData(data []byte) (*efiGPTEventData, error) {
 	stream := bytes.NewReader(data)
@@ -136,7 +134,7 @@ func parseGPTData(data []byte) (*efiGPTEventData, error) {
 		if err := binary.Read(entryStream, binary.LittleEndian, &attr); err != nil {
 			return nil, err
 		}
-		
+
 		nameutf := make([]uint16, entryStream.Len()/2)
 		if err := binary.Read(entryStream, binary.LittleEndian, &nameutf); err != nil {
 			return nil, err
@@ -150,11 +148,11 @@ func parseGPTData(data []byte) (*efiGPTEventData, error) {
 			name.WriteRune(r)
 		}
 		eventData.partitions[i] = efiGPTPartitionEntry{tGuid: tGuid,
-						uGuid: uGuid,
-						sLBA: sLBA,
-						eLBA: eLBA,
-						attr: attr,
-						name: name.String()}
+			uGuid: uGuid,
+			sLBA:  sLBA,
+			eLBA:  eLBA,
+			attr:  attr,
+			name:  name.String()}
 	}
 
 	return eventData, nil

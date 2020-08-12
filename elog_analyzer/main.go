@@ -1,30 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package main
+
 import (
-	"fmt"
-	"flag"
 	"encoding/json"
-	"os"
-	"io/ioutil"
+	"flag"
+	"fmt"
 	"github.com/cshari-zededa/eve-tpm2-tools/eventlog"
+	"io/ioutil"
+	"os"
 )
 
 var (
-	parseLog bool
-	verbose  bool
+	parseLog       bool
+	verbose        bool
 	deriveTemplate bool
-	validate bool
-	templatePath string
-	eventLogPath string
+	validate       bool
+	templatePath   string
+	eventLogPath   string
 )
-func init() {
-    flag.BoolVar(&parseLog, "parse-log", false, "Decode and print details from eventlog")
-    flag.BoolVar(&verbose, "verbose", false, "Display details of event data")
-    flag.BoolVar(&deriveTemplate, "derive-template", false, "Derive a template out of given eventlog")
-    flag.BoolVar(&validate, "validate-eventlog", false, "Validate eventlog against a given template")
-    flag.StringVar(&templatePath, "template-file-path", "", "Path to template file")
-    flag.StringVar(&eventLogPath, "eventlog-file-path", "", "Path to eventlog file")
-}
 
+func init() {
+	flag.BoolVar(&parseLog, "parse-log", false, "Decode and print details from eventlog")
+	flag.BoolVar(&verbose, "verbose", false, "Display details of event data")
+	flag.BoolVar(&deriveTemplate, "derive-template", false, "Derive a template out of given eventlog")
+	flag.BoolVar(&validate, "validate-eventlog", false, "Validate eventlog against a given template")
+	flag.StringVar(&templatePath, "template-file-path", "", "Path to template file")
+	flag.StringVar(&eventLogPath, "eventlog-file-path", "", "Path to eventlog file")
+}
 
 func main() {
 	flag.Parse()
@@ -35,8 +38,8 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		template    := eventlog.PrepareMeasurements(events)
-		buf, err    := json.MarshalIndent(template, "", "\t")
+		template := eventlog.PrepareMeasurements(events)
+		buf, err := json.MarshalIndent(template, "", "\t")
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -44,7 +47,7 @@ func main() {
 		fmt.Println(ioutil.WriteFile(templatePath, buf, 755))
 		return
 	}
- 	if validate {
+	if validate {
 		events, err := eventlog.ParseEvents(eventLogPath)
 		if err != nil {
 			fmt.Println(err)

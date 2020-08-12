@@ -1,14 +1,13 @@
-// Copyright (c) 2018-2019 Zededa, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package eventlog 
+package eventlog
 
 import (
 	"bytes"
 	"encoding/binary"
-	"unicode/utf16"
 	"fmt"
 	"io"
+	"unicode/utf16"
 )
 
 type EFIDPathNodeType uint8
@@ -226,16 +225,17 @@ type typeSubType struct {
 	t  EFIDPathNodeType
 	st uint8
 }
-var pathDecoders = map[typeSubType]pathDecoder {
-	{EFIDPathNodeMedia, efiMediaDPathNodeFvFile} : firmwareDPathNodeToStringNew,
-	{EFIDPathNodeMedia, efiMediaDPathNodeFv} : firmwareDPathNodeToStringNew,
-	{EFIDPathNodeMedia, efiMediaDPathNodeHardDrive} : hardDriveDPathNodeToString,
-	{EFIDPathNodeMedia, efiMediaDPathNodeFilePath}: filePathDPathNodeToString,
-	{EFIDPathNodeMedia, efiMediaDPathNodeRelOffsetRange} : relOffsetRangePathNodeToString,
-	{EFIDPathNodeACPI, efiACPIDPathNodeNormal} : acpiDPathNodeToString,
-	{EFIDPathNodeHardware, efiHardwareDPathNodePCI} : pciDPathNodeToString,
-	{EFIDPathNodeMsg, efiMsgDPathNodeLU} : luDPathNodeToString,
-	{EFIDPathNodeMsg, efiMsgDPathNodeSATA} : sataDPathNodeToString,
+
+var pathDecoders = map[typeSubType]pathDecoder{
+	{EFIDPathNodeMedia, efiMediaDPathNodeFvFile}:         firmwareDPathNodeToStringNew,
+	{EFIDPathNodeMedia, efiMediaDPathNodeFv}:             firmwareDPathNodeToStringNew,
+	{EFIDPathNodeMedia, efiMediaDPathNodeHardDrive}:      hardDriveDPathNodeToString,
+	{EFIDPathNodeMedia, efiMediaDPathNodeFilePath}:       filePathDPathNodeToString,
+	{EFIDPathNodeMedia, efiMediaDPathNodeRelOffsetRange}: relOffsetRangePathNodeToString,
+	{EFIDPathNodeACPI, efiACPIDPathNodeNormal}:           acpiDPathNodeToString,
+	{EFIDPathNodeHardware, efiHardwareDPathNodePCI}:      pciDPathNodeToString,
+	{EFIDPathNodeMsg, efiMsgDPathNodeLU}:                 luDPathNodeToString,
+	{EFIDPathNodeMsg, efiMsgDPathNodeSATA}:               sataDPathNodeToString,
 }
 
 func parseDPathNode(stream io.Reader) (string, error) {
@@ -267,7 +267,7 @@ func parseDPathNode(stream io.Reader) (string, error) {
 		return "", err
 	}
 
-	pathDecoderFn, found := pathDecoders[typeSubType{t:t, st:subType}]
+	pathDecoderFn, found := pathDecoders[typeSubType{t: t, st: subType}]
 	if found {
 		return pathDecoderFn(data, t, subType)
 	}
@@ -308,7 +308,7 @@ func (e *efiImageLoadEventData) Bytes() []byte {
 	return e.data
 }
 
-func parseEventDataEFIImageLoad(data []byte)  error {
+func parseEventDataEFIImageLoad(data []byte) error {
 	stream := bytes.NewReader(data)
 
 	var locationInMemory uint64

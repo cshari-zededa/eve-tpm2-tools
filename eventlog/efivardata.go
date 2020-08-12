@@ -1,15 +1,14 @@
-// Copyright (c) 2018-2019 Zededa, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package eventlog 
+package eventlog
 
 import (
 	"bytes"
 	"encoding/binary"
-	"unicode/utf8"
-	"unicode/utf16"
 	"fmt"
 	"io"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 // EFIVariableEventData corresponds to the EFI_VARIABLE_DATA type.
@@ -26,7 +25,7 @@ var (
 	surr3 uint16 = 0xe000
 )
 
-//Write 
+//Write
 func utf16ToStr(u []uint16) string {
 	var utf8Str []byte
 	for _, r := range utf16.Decode(u) {
@@ -75,7 +74,7 @@ func (e *EFIVariableEventData) Bytes() []byte {
 	return e.data
 }
 
-func parseEventDataEFIVariable(data []byte, eventType EventType) error { 
+func parseEventDataEFIVariable(data []byte, eventType EventType) error {
 	stream := bytes.NewReader(data)
 
 	var guid Guid
