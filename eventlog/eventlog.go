@@ -1,7 +1,7 @@
 // Copyright (c) 2018-2019 Zededa, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package main 
+package eventlog 
 
 import (
 	"bytes"
@@ -349,7 +349,7 @@ func ParseGPTEntries(events []rawEvent) {
 	}
 }
 
-func dumpEventLog(events []rawEvent, verbose bool) {
+func DumpEventLog(events []rawEvent, verbose bool) {
 	for  _, event := range events {
 		fmt.Printf("----Event %d----\n", event.sequence)
 		fmt.Printf("Type: %s\n", eventTypeNames[event.typ])
@@ -403,14 +403,14 @@ func (g *Guid) String() string {
 		g.Data4[2:])
 }
 
-type templateEvent struct {
+type TemplateEvent struct {
 	Data string
 	Digest []byte
 }
 
-func PrepareMeasurements(events []rawEvent) []templateEvent {
+func PrepareMeasurements(events []rawEvent) []TemplateEvent {
 	ParseGPTEntries(events)
-	templateEvents := make([]templateEvent, 0)
+	templateEvents := make([]TemplateEvent, 0)
 	for  _, event := range events {
 		if event.index != 8 {
 			continue
@@ -439,7 +439,7 @@ func PrepareMeasurements(events []rawEvent) []templateEvent {
 		fmt.Printf("Data: %s\n", grubData)
 		computedDigest := h.Sum(nil)
 		fmt.Printf("Computed Hash: %x\n", computedDigest)
-		tEvent := templateEvent{Data: grubData, Digest: computedDigest}
+		tEvent := TemplateEvent{Data: grubData, Digest: computedDigest}
 		templateEvents = append(templateEvents, tEvent)
 		for _, digest := range event.digests {
 			if digest.hash == crypto.SHA256 {
@@ -450,7 +450,7 @@ func PrepareMeasurements(events []rawEvent) []templateEvent {
 	return templateEvents
 }
 
-func validateEventLog(events []rawEvent, pcrs map[int][]byte, templateEvents []templateEvent) error {
+func ValidateEventLog(events []rawEvent, pcrs map[int][]byte, templateEvents []TemplateEvent) error {
 	//First validate that eventlog matches pcrs
 	derivedPcrs := EventLogIterate(events)
 	for i, digest := range pcrs {

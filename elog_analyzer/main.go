@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"io/ioutil"
+	"github.com/cshari-zededa/eve-tpm2-tools/eventlog"
 )
 
 var (
@@ -29,12 +30,12 @@ func main() {
 	flag.Parse()
 	fmt.Println(eventLogPath)
 	if deriveTemplate {
-		events, err := ParseEvents(eventLogPath)
+		events, err := eventlog.ParseEvents(eventLogPath)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		template    := PrepareMeasurements(events)
+		template    := eventlog.PrepareMeasurements(events)
 		buf, err    := json.MarshalIndent(template, "", "\t")
 		if err != nil {
 			fmt.Println(err)
@@ -44,7 +45,7 @@ func main() {
 		return
 	}
  	if validate {
-		events, err := ParseEvents(eventLogPath)
+		events, err := eventlog.ParseEvents(eventLogPath)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -54,14 +55,14 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		template := make([]templateEvent, 0)
+		template := make([]eventlog.TemplateEvent, 0)
 		err = json.Unmarshal(buf, &template)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		pcrs := EventLogIterate(events)
-		err = validateEventLog(events, pcrs, template)
+		pcrs := eventlog.EventLogIterate(events)
+		err = eventlog.ValidateEventLog(events, pcrs, template)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -71,22 +72,12 @@ func main() {
 		}
 	}
 	if parseLog {
-		events, err := ParseEvents(eventLogPath)
+		events, err := eventlog.ParseEvents(eventLogPath)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		dumpEventLog(events, verbose)
+		eventlog.DumpEventLog(events, verbose)
 		return
 	}
-//		dumpEventLog(events, false)
-//		pcrs := EventLogIterate(events)
-//		ParseGPTEntries(events)
-//		imgAGid := diskGuids[ImgA]
-//		imgBGid := diskGuids[ImgA]
-//		fmt.Printf("IMGA %s\nIMGB %s\n", &imgAGid, &imgBGid)
-//		template := PrepareMeasurements(events)
-//		fmt.Println(validateEventLog(events, pcrs, template))
-//	}
-	return
 }
