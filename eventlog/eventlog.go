@@ -99,7 +99,7 @@ type Digest struct {
 	Data []byte
 }
 
-type rawEvent struct {
+type Event struct {
 	Sequence int
 	Index    int
 	Typ      EventType
@@ -198,9 +198,9 @@ func parseSpecIDEvent(data []byte) (SpecIDEvent, error) {
 	return specID, nil
 }
 
-func getSpecIDEvent(r *bytes.Buffer) (rawEvent, error) {
+func getSpecIDEvent(r *bytes.Buffer) (Event, error) {
 	var h rawEventHeader
-	var event rawEvent
+	var event Event
 	if err := binary.Read(r, binary.LittleEndian, &h); err != nil {
 		return event, err
 	}
@@ -218,7 +218,7 @@ func getSpecIDEvent(r *bytes.Buffer) (rawEvent, error) {
 
 	digests := []Digest{{Hash: crypto.SHA1, Data: h.Digest[:]}}
 
-	return rawEvent{
+	return Event{
 		Typ:     EventType(h.Type),
 		Data:    data,
 		Index:   int(h.PCRIndex),
@@ -226,10 +226,10 @@ func getSpecIDEvent(r *bytes.Buffer) (rawEvent, error) {
 	}, nil
 }
 
-func parseEvent(r *bytes.Buffer, specID SpecIDEvent) (rawEvent, error) {
+func parseEvent(r *bytes.Buffer, specID SpecIDEvent) (Event, error) {
 	var h rawEvent2Header
 
-	var event rawEvent
+	var event Event
 
 	if err := binary.Read(r, binary.LittleEndian, &h); err != nil {
 		return event, err
@@ -293,7 +293,7 @@ func isSha256Enabled(specID SpecIDEvent) bool {
 	return false
 }
 
-func (e *rawEvent) Sha256Digest() []byte {
+func (e *Event) Sha256Digest() []byte {
 	for _, digest := range e.Digests {
 		if digest.Hash == crypto.SHA256 {
 			return digest.Data
@@ -302,7 +302,7 @@ func (e *rawEvent) Sha256Digest() []byte {
 	return []byte{}
 }
 
-func ParseEvents(eventLogFile string) ([]rawEvent, error) {
+func ParseEvents(eventLogFile string) ([]Event, error) {
 	eventLogBytes, err := ioutil.ReadFile(eventLogFile)
 	if err != nil {
 		return nil, err
@@ -319,7 +319,7 @@ func ParseEvents(eventLogFile string) ([]rawEvent, error) {
 	if isSha256Enabled(specID) == false {
 		return nil, fmt.Errorf("SHA256 PCR bank not enabled")
 	}
-	var events []rawEvent
+	var events []Event
 	if event.Typ == eventTypeNoAction {
 		sequence := 1
 		for r.Len() > 0 {
@@ -335,7 +335,7 @@ func ParseEvents(eventLogFile string) ([]rawEvent, error) {
 	return events, nil
 }
 
-func EventLogIterate(events []rawEvent) map[int][]byte {
+func EventLogIterate(events []Event) map[int][]byte {
 	pcrs := make(map[int][]byte)
 	for i := 0; i < 10; i++ {
 		pcrs[i] = make([]byte, 32)
@@ -366,7 +366,7 @@ const (
 
 var diskGuids = make(map[string]Guid)
 
-func ParseGPTEntries(events []rawEvent) {
+func ParseGPTEntries(events []Event) {
 	for _, event := range events {
 		if event.Index == 5 {
 			gptEntries, err := parseGPTData(event.Data)
@@ -378,7 +378,7 @@ func ParseGPTEntries(events []rawEvent) {
 	}
 }
 
-func DumpEventLog(events []rawEvent, verbose bool) {
+func DumpEventLog(events []Event, verbose bool) {
 	for _, event := range events {
 		fmt.Printf("----Event %d----\n", event.Sequence)
 		fmt.Printf("Type: %s\n", eventTypeNames[event.Typ])
@@ -437,7 +437,7 @@ type TemplateEvent struct {
 	Digest []byte
 }
 
-func PrepareMeasurements(events []rawEvent) []TemplateEvent {
+func PrepareMeasurements(events []Event) []TemplateEvent {
 	ParseGPTEntries(events)
 	templateEvents := make([]TemplateEvent, 0)
 	for _, event := range events {
@@ -479,7 +479,7 @@ func PrepareMeasurements(events []rawEvent) []TemplateEvent {
 	return templateEvents
 }
 
-func ValidateEventLog(events []rawEvent, pcrs map[int][]byte, templateEvents []TemplateEvent) error {
+func ValidateEventLog(events []Event, pcrs map[int][]byte, templateEvents []TemplateEvent) error {
 	//First validate that eventlog matches pcrs
 	derivedPcrs := EventLogIterate(events)
 	for i, digest := range pcrs {
